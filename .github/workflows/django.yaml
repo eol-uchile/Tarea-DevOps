@@ -1,0 +1,58 @@
+name: Django CI
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - staging    # Causes CI to run when Bors pushes to staging
+      - trying     # Causes CI to run when Bors pushes to trying (bors try)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: create virtualenv
+      run: |
+        virtualenv --python python3 ./venv
+        source venv/bin/activate
+    - name: Install Dependencies
+      run: |
+        pip install Django pytest-django
+    - name: Run Tests
+      run: |
+        pytest
+  deploy:
+    name: deploy to cluster
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: build and push to docker
+      uses: mr-smithers-excellent/docker-build-push@v5
+      with: 
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        registry: ghcr.io
+        githubOrg: override-org 
+        tags: ${{ github.sha }}, latest
+        
+  done:
+    name: Done
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Done
+        run: echo Done
+
